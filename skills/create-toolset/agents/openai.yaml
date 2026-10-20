@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create Unreal MCP Tools"
+  short_description: "Extend Unreal MCP tools with typed contracts and tests"
+  default_prompt: "Use $create-toolset to extend this project's existing Unreal MCP implementation and verify the new tool."

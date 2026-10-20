@@ -1,112 +1,80 @@
-# Unreal Engine Skills for Claude Code
+# Unreal Engine Skills for Codex
 
-Control Unreal Editor directly from Claude Code via MCP. Hundreds of tools exposed via Unreal's ToolsetRegistry across 30+ toolsets: actors, blueprints, materials, Niagara, Control Rigs, Sequencer, State Trees, widgets, Gameplay Ability System, automation testing, and more.
+Unreal Engine 작업을 **unrealMCP + Codex agent**로 수행하는 스킬 모음입니다. 기존 Claude Code용 스킬 3개를 모두 포팅했습니다. 원본의 ToolsetRegistry C++·Python 작성 지침은 참조 문서로 유지합니다.
 
-## Contents
+| 스킬 | 용도 |
+| --- | --- |
+| `unreal-mcp` | 에디터 조회·편집, Blueprint·에셋 작업, C++ 수정 후 빌드·검증, MCP 연결 문제 해결 |
+| `create-toolset` | 사용 중인 MCP 구현에 맞는 도구 확장, Epic ToolsetRegistry C++·Python 툴셋 작성 |
+| `unreal-skill` | Unreal 작업용 Codex 스킬 작성, 지원되는 엔진에서 Agent Skill 등록·수정 |
 
-### Skills
+## 설치
 
-- **`unreal-mcp`** (`skills/unreal-mcp`) - instructions and workflows for driving the Unreal Editor via MCP.
+Python 3.11 이상을 사용합니다. Windows PowerShell, macOS, Linux에서 같은 명령을 사용하며 Bash 훅은 필요 없습니다.
 
-### Hooks
+```powershell
+# 저장소 루트에서 실행. 사용자 경로 ~/.agents/skills에 3개 모두 설치
+python scripts/install_skills.py
 
-- **SessionStart** (`hooks/unreal-context.sh`) - injects a short note identifying the repo as an Unreal Engine project so Claude defaults to UE conventions (C++/`UObject`, Slate, UHT) and prefers the `unreal-mcp` skill. Runs on `startup`, `resume`, and `clear`.
+# 특정 Unreal 프로젝트에서만 사용
+python scripts/install_skills.py --project "D:/Projects/MyGame"
 
-## Prerequisites
-
-1. **Unreal Editor** with the **ModelContextProtocol** and **AllToolsets** plugins enabled (`AllToolsets` provides the tools; the server exposes none without it)
-2. **Editor running to execute tools**, with the MCP server started. Run `ModelContextProtocol.StartServer`, or enable `bAutoStartServer` through `skills/unreal-mcp/references/setup.md`. The optional proxy can keep the client connection open while the editor is stopped.
-3. **A bash shell on `PATH`** - required for the `SessionStart` hook (see **Platform Support**)
-
-## Platform Support
-
-Supported: **macOS**, **Linux**, and **Windows via Git Bash or WSL**.
-
-The `SessionStart` hook is a bash script (`hooks/unreal-context.sh`) invoked by `hooks/hooks.json` as `bash ${CLAUDE_PLUGIN_ROOT}/hooks/unreal-context.sh`. It requires a working `bash` on `PATH`:
-
-- **macOS / Linux:** works out of the box.
-- **Windows:** install **Git for Windows** (provides Git Bash) or run Claude Code under **WSL**. Native PowerShell without one of those does not have `bash` on `PATH`, and the hook will not run. The plugin's MCP tools still work; you just lose the short project-context note the hook injects at session start. There is no separate PowerShell companion script today.
-
-## Installation
-
-This plugin is published in Anthropic's official Claude Code plugin marketplace, `claude-plugins-official`, which is available automatically when you start Claude Code. Browse it at [claude.com/plugins](https://claude.com/plugins) or in the **Discover** tab of the `/plugin` panel.
-
-### Install for a single developer
-
-In Claude Code:
-
-```
-/plugin install unreal-engine-skills-for-claude-code@claude-plugins-official
+# 이 설치기로 설치한 스킬 갱신 (수동 편집본·동명 스킬은 덮어쓰지 않음)
+python scripts/install_skills.py --update
 ```
 
-If the official marketplace is not present, add it first, then run the install command above:
+기존 경로를 사용하는 환경에서는 `--destination "C:/Users/YourName/.codex/skills"`를 지정할 수 있습니다. 같은 이름을 여러 검색 경로에 중복 설치하지 마세요. 설치 후 Codex에서 `$unreal-mcp`, `$create-toolset`, `$unreal-skill`로 호출하거나 자연어로 요청합니다. 새 스킬이 보이지 않으면 새 채팅을 열거나 Codex를 재시작하세요.
 
-```
-/plugin marketplace add anthropics/claude-plugins-official
-```
+루트 `plugin.json`과 `skills/`는 Agent Plugins 패키지 형식입니다. 로컬 마켓플레이스의 plugin source를 이 폴더로 지정할 수 있습니다. 스킬 직접 설치와 플러그인 설치 중 하나를 선택하세요. 공개 마켓플레이스에 배포된 상태를 뜻하지 않습니다.
 
-### Install for a team
+## unrealMCP 연결
 
-Commit this to `.claude/settings.json` in the project that should use the plugin. Anyone who trusts the project folder is prompted to install it automatically:
+먼저 기존 연결을 확인합니다. `unrealMCP`, `unreal-mcp` 또는 프록시가 연결돼 있으면 재사용합니다.
 
-```json
-{
-  "enabledPlugins": {
-    "unreal-engine-skills-for-claude-code@claude-plugins-official": true
-  }
-}
+```powershell
+codex mcp list
+codex mcp get unrealMCP
+
+# HTTP MCP 서버가 실제 이 주소로 구동된 경우에만 추가
+codex mcp add unrealMCP --url http://127.0.0.1:8000/mcp
 ```
 
-## Verification
+프로젝트별 설정은 [examples/codex-http.toml](examples/codex-http.toml)을 참고해 `.codex/config.toml`의 기존 내용에 필요한 MCP 테이블만 병합하세요. 프로젝트 설정은 신뢰된 프로젝트에서 적용됩니다. 설치기는 MCP 설정을 변경하지 않습니다.
 
-1. Launch Unreal Editor, then run `ModelContextProtocol.StartServer` in the console to start the MCP server.
-2. Check the Output Log for MCP server startup messages.
-3. In Claude Code, run `/plugin`. The **Installed** tab should list `unreal-engine-skills-for-claude-code` as enabled. This confirms the plugin itself (skills, hooks) is loaded.
-4. Run `/mcp`. Check for `unreal-mcp`, or `unreal-mcp-proxy` if you installed the proxy. A connected proxy does not prove that Unreal is reachable.
-5. Try: "List all actors in the current level".
+**서버 이름만으로 구현을 판단하지 않습니다.** Epic `ModelContextProtocol` + `ToolsetRegistry` 계열은 메타 도구를 제공할 수 있고, 별도 UnrealMCP 플러그인·Python 브리지는 개별 MCP 도구를 제공할 수 있습니다. 포트·플러그인 이름·지원 기능은 설치한 구현에서 확인합니다. 모든 서버가 `AllToolsets`, `AgentSkillToolset`, Live Coding 또는 임의 Python 실행을 지원한다고 가정하지 않습니다.
 
-## Configuration
+연결 절차와 STDIO 설정은 [setup.md](skills/unreal-mcp/references/setup.md), 복구는 [operations.md](skills/unreal-mcp/references/operations.md)를 참고하세요. Unreal Editor가 실행 중이어야 라이브 작업을 검증할 수 있습니다. 로컬 MCP는 실행 호스트에서 접근할 수 있어야 하며, 클라우드에 스킬을 저장하는 것만으로 로컬 에디터가 연결되지는 않습니다.
 
-The default port is **8000** with URL path `/mcp`. If the port is in use, run `ModelContextProtocol.StartServer <port>` in the console with a different port number.
+## 사용 예
 
-> **Note:** This plugin does not ship a static `.mcp.json` file. Run `ModelContextProtocol.GenerateClientConfig ClaudeCode` in the editor console to generate it from the current server port and URL; re-run after changing either.
+```text
+$unreal-mcp 현재 프로젝트와 레벨을 확인하고 액터 목록을 보여줘.
+$unreal-mcp BP_Door의 잠금 변수를 수정하고 컴파일·저장 후 다시 확인해줘.
+$unreal-mcp 이 Actor C++ 코드를 고치고 빌드와 에디터 검증까지 해줘.
+$create-toolset 선택한 액터의 머티리얼을 조회하는 MCP 도구를 추가해줘.
+$unreal-skill 이 프로젝트의 레벨 제작 규칙을 Codex 스킬로 만들어줘.
+```
 
-### Optional proxy for editor recovery
+Claude 전용 SessionStart 훅 대신 [examples/AGENTS.unreal.md](examples/AGENTS.unreal.md)의 필요한 지침을 대상 프로젝트의 기존 `AGENTS.md`에 병합할 수 있습니다. 설치기가 프로젝트 지침을 자동으로 덮어쓰지는 않습니다.
 
-If your engine build includes `Engine/Plugins/Experimental/ModelContextProtocol/Extras/Proxy`, you can use its `unreal_mcp_proxy` executable.
+## 검증과 클라우드 보관
 
-The proxy keeps the client-facing MCP session open while Unreal is unavailable and reconnects when Unreal starts again. It stores Unreal's native tool catalog as a temporary fallback. Cached tools do not prove that live calls can succeed. Without a cache, it exposes only `unreal_mcp_status` until the client fetches the recovered catalog.
+```powershell
+python -m pip install -r requirements-dev.txt
+python scripts/validate_skills.py
+python -m unittest discover -s tests -v
+python scripts/package_skills.py
+```
 
-See [proxy setup](skills/unreal-mcp/references/setup.md#4-optional-install-the-proxy) for platform binaries and installation commands. See [proxy recovery](skills/unreal-mcp/references/operations.md#proxy-recovery) for status, cached catalogs, and connection failures.
+패키징은 `dist/`에 스킬별 ZIP과 SHA-256 파일 목록을 생성합니다. 각 ZIP에는 `SKILL.md`, 모든 참조·UI 메타데이터, 라이선스가 포함됩니다. 로컬 설치·패키징과 ChatGPT 보관함 업로드는 별도 상태입니다. 기존 클라우드 ID가 있으면 재사용하고, 본문과 참조를 함께 갱신한 뒤 확인해야 동기화 완료입니다. 업로드 실패 시 ZIP을 보존합니다.
 
-**Tool search** is enabled by default: the MCP server exposes three meta-tools (`list_toolsets`, `describe_toolset`, `call_tool`) instead of the full tool catalog, so Claude discovers toolsets on demand, the prompt cache stays warm, and discovered tools are callable on the same turn through `call_tool`. Toggle with the `bEnableToolSearch` setting in `[/Script/ModelContextProtocolEngine.ModelContextProtocolSettings]`; when disabled, every tool is registered upfront (path used by the hash-mapping commandlet). The model-facing usage contract lives in `skills/unreal-mcp/SKILL.md`.
+정적 검증은 구조·참조·메타데이터·패키지 무결성을 확인합니다. 에디터 기능은 대상 엔진과 MCP 서버에서 읽기 호출, 변경 후 재조회, Blueprint/C++ 컴파일 결과로 별도 검증합니다.
 
-## Security
+## 출처
 
-Installing this plugin gives Claude broad, live access to the running Unreal Editor. Treat that access the same way you would treat running arbitrary code from an assistant, because in practice it is.
+- [Codex skills](https://developers.openai.com/codex/skills/): 검색 위치와 형식.
+- [Codex MCP](https://developers.openai.com/codex/mcp/): HTTP·STDIO 연결과 TOML 설정.
+- [Plugin packaging](https://developers.openai.com/plugins/build/plugins): 루트 매니페스트 형식.
+- [chongdashu/unreal-mcp](https://github.com/chongdashu/unreal-mcp): 별도 MCP 구현 예시. 사용자의 설치 구현으로 단정하지 않습니다.
 
-**Localhost is not a trust boundary.** The MCP server binds to `localhost:8000` with origin validation. Origin validation protects against a browser tab talking to the server, but any process running as the same user on the same machine can connect. Do not run the MCP server on shared or untrusted machines, and do not expose the port outside the loopback interface.
-
-**`ProgrammaticToolset.execute_tool_script` executes arbitrary Python** inside the editor process. That script has full access to every toolset API, the project on disk, the asset database, and editor-privileged functions. Treat every invocation as a privileged operation that can mutate, move, or delete project content, and expect it to succeed without a second confirmation when approvals are disabled.
-
-**`--dangerously-skip-permissions` removes the per-tool approval gate.** In that mode Claude can drive the editor and run Python through `execute_tool_script` with no further consent. A bad prompt in that mode can reach into the project and modify a large amount of state before you notice. Prefer not to run Claude Code with `--dangerously-skip-permissions` while this plugin is loaded; if you do, keep the blast radius small (narrow prompts, read-heavy tasks, a throwaway sandbox project).
-
-**Source-control hygiene.** MCP tools edit live `UObject` state and can mutate, move, or delete VCS-tracked assets in a single call. Save and commit (or shelve) before any long MCP-driven session so the working copy is recoverable if Claude produces an unexpected result. Review the diff before submitting.
-
-## What's Available
-
-All tools are auto-discovered by Claude Code via MCP. No manual configuration needed. Tools cover the full editor surface across these domains:
-
-- **Actors and Scene** - spawn, transform, inspect, and delete actors; manage components and outliner folders
-- **Blueprints** - create, edit graphs, add nodes, connect pins, manage variables, compile
-- **Assets and Content** - find, load, save, move, duplicate assets; edit Data Tables, Curve Tables, String Tables
-- **Materials** - author material graphs, create and configure material instances
-- **Meshes and Textures** - inspect/edit static and skeletal meshes, LODs, collisions, Nanite, sockets, bones
-- **Animation** - build Control Rigs, inspect State Trees and Behavior Trees
-- **Sequencer** - create and edit Level Sequences, keyframe animation, manage cameras, Control Rig integration, FBX import/export
-- **VFX** - author Niagara systems and Dataflow graphs
-- **UI** - build UMG widget blueprints, automate Slate UI interaction
-- **Gameplay** - manage gameplay tags, inspect GAS state, create Game Feature Plugins, edit physics assets
-- **Testing** - discover, run, and inspect C++ automation tests with detailed results
-- **Editor** - screenshots, camera control, actor/asset selection, content browser, log inspection
-- **Scripting** - batch multiple tool calls into a single Python script execution
+원본 Epic Games MIT 저작권과 라이선스를 유지합니다. 이 포트는 OpenAI 또는 Epic Games의 공식 배포라는 의미가 아닙니다.

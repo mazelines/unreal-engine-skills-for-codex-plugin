@@ -1,0 +1,4 @@
+interface:
+  display_name: "Author Unreal Codex Skills"
+  short_description: "Build reusable Unreal workflows for Codex agents"
+  default_prompt: "Use $unreal-skill to turn this Unreal project workflow into a reusable Codex skill."

@@ -1,0 +1,14 @@
+{
+  "checked_date": "2026-10-21",
+  "timezone": "Asia/Seoul",
+  "library": "https://chatgpt.com/skills",
+  "status": "blocked",
+  "reason": "Authenticated skill library displays: 이 계정에서는 스킬을 사용할 수 없습니다",
+  "visibility_changes": false,
+  "skills": {
+    "unreal-mcp": {"skill_id": null, "package": "dist/unreal-mcp.zip", "status": "not_uploaded"},
+    "create-toolset": {"skill_id": null, "package": "dist/create-toolset.zip", "status": "not_uploaded"},
+    "unreal-skill": {"skill_id": null, "package": "dist/unreal-skill.zip", "status": "not_uploaded"}
+  },
+  "next_step": "When skill library access is available, search each exact name, reuse an unambiguous existing skill ID, upload the complete package, verify instructions and every reference/metadata file, then record the ID and saved result. Do not create duplicates or expand sharing."
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Unreal MCP for Codex"
+  short_description: "Drive Unreal Editor and verify source changes with MCP"
+  default_prompt: "Use $unreal-mcp to inspect this Unreal project, perform the requested change, and verify the editor result."

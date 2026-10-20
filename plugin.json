@@ -1,0 +1,7 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "unreal-engine-skills-for-codex",
+  "version": "4.0.0",
+  "description": "Unreal Engine workflows for Codex agents using unrealMCP: live editor work, C++ iteration, MCP tool authoring, and reusable skills.",
+  "license": "MIT"
+}

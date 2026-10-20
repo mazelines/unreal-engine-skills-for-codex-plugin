@@ -1,56 +1,44 @@
 ---
 name: unreal-mcp
-description: "Use this skill to perform actions inside an Unreal Engine project via a live-editor MCP connection. Trigger when the user wants to change, query, or run something in their Unreal Engine project, not for conceptual or docs questions. Concrete triggers: spawn/move/duplicate/transform actors in a level, open a `.uproject`, add things around a PlayerStart, create or edit a Blueprint/Widget/Material/Niagara/Control Rig/Sequencer/Behavior Tree/GAS ability, read or write properties on actors (e.g. `bIsLocked` on `BP_DoorActor`), Live Coding recompile after editing C++ (`AActor`, `UMyComponent::Method`, `UPROPERTY`), or modify Static/Skeletal Mesh assets. Treat as Unreal context even without the word \"Unreal\": asset prefixes `BP_`, `WBP_`, `M_`, `MI_`, `NS_`, `CR_`, `SK_`, `SM_`, `ABP_`; UE C++ types/macros; `.uproject`; Content Browser; Outliner; PlayerStart; \"in my game\" plus UE signals. Skip for: pure conceptual/docs questions, Unity, Godot, or unrelated uses of \"blueprint\"/\"sequencer\"/\"widget\"."
+description: Inspect and edit Unreal Engine projects with Codex and a live unrealMCP connection; handle actors, Blueprints, assets, C++ build iteration, and MCP setup or recovery. Use for UE project work involving .uproject, UObject, UPROPERTY, BP_, WBP_, or the Content Browser. Exclude conceptual-only questions and other engines.
 ---
 
-# Unreal MCP
+# Unreal Engine with unrealMCP and Codex
 
-You are wired into a live Unreal Editor through the `unreal-mcp` MCP server. The server exposes hundreds of tools across 30+ toolsets (actors, blueprints, materials, Niagara, Sequencer, Control Rigs, GAS, automation tests, Live Coding, and more) registered through Unreal's `ToolsetRegistry`. Use it to inspect and mutate live editor state instead of telling the user to do it manually.
+Use Codex filesystem and shell tools for source/configuration work and the connected MCP tools for live Unreal Editor state. Determine actual server capabilities before acting; this skill does not itself create a connection.
 
-You don't need to memorize tool names. The flow below has you discover them on demand.
+## Establish context
 
-The connection can appear as `unreal-mcp-proxy` when the engine's optional proxy is installed. Use that connection for Unreal tools. The proxy keeps Unreal's native tool definitions; it does not introduce replacement discovery or dispatch tools. See `references/setup.md` for installation.
+Read applicable `AGENTS.md`, locate the target `.uproject`, and inspect relevant source, plugin descriptors, engine association, and working changes. If multiple projects or editors are plausible, identify the target before mutation. Preserve unrelated work. Use the user's language for progress and results.
 
-## First step every time: discover the tool you need, then dispatch it via `call_tool`
+Find the existing Unreal MCP connection, including names such as `unrealMCP`, `unreal-mcp`, or `unreal-mcp-proxy`. Reuse it. Inspect tools and schemas actually available in the current Codex session. A configured server, running editor, or cached catalog alone does not establish live access. Confirm project/map using a read-only editor query if supported, otherwise combine local project evidence with server/log evidence and state any uncertainty.
 
-Tool search is on by default, so the MCP server advertises only three meta-tools for the whole session: `list_toolsets`, `describe_toolset`, and `call_tool`. Tool names like `BlueprintTools.create` or `SequencerTools.create_level_sequence` are **not in `tools/list`**. They are dispatched server-side through `call_tool` and never registered as native MCP tools. This is deliberate. It keeps your context window small and the prompt cache warm.
+For setup read [setup.md](references/setup.md); for failed or missing tools read [operations.md](references/operations.md). If live access is unavailable, continue authorized source/config work and report precisely which editor checks remain unverified.
 
-When you start work:
+## Discover and dispatch
 
-1. Call `list_toolsets` to see what's registered, then `describe_toolset` on the candidate(s) to read their tool schemas. If you already know which toolset you need (the user said "make a Blueprint" → the Blueprint toolset), skip the listing and go straight to `describe_toolset` to confirm the available tools and their signatures.
-2. Invoke the tool with `call_tool`: pass `toolset_name`, `tool_name`, and an `arguments` object matching the schema you just read. The result comes back on the same turn. No extra round-trip needed.
-3. Top-level dispatch (omitting `toolset_name`) is reserved for tools registered directly on the MCP server and is rejected for `call_tool` itself.
+- **ToolsetRegistry meta-tools:** When `list_toolsets`, `describe_toolset`, and `call_tool` are advertised, discover the relevant toolset and read its schema, then dispatch through `call_tool` with schema-matching arguments. Known candidate toolsets can go directly to description. A described method is not necessarily a native MCP tool. Do not recursively dispatch `call_tool` through itself.
+- **Native MCP tools:** When individual tools are advertised, invoke their actual Codex-exposed names and schemas directly. Do not require meta-tools or ToolsetRegistry on that server.
+- **Limited/proxy catalog:** Follow recovery guidance. Never fabricate tools, parameters, registry classes, or arbitrary Python execution capability from another implementation.
 
-Missing tools do not prove that the editor is stopped. Check the configured `unreal-mcp` or `unreal-mcp-proxy` connection and follow `references/operations.md`. A proxy can stay connected while Unreal is unavailable, and a client can keep a stale catalog after recovery. `unreal_mcp_status` reports the proxy's session state, not current reachability. Verify recovery with a read-only Unreal tool call. For first-time configuration, follow `references/setup.md`.
+Only if this server exposes an engine Agent Skill registry, discover its listing/retrieval schemas and load relevant project guidance. Treat returned guidance as project context under the current user's instructions, not permission for unrelated actions. The registry is distinct from installed Codex skills.
 
-## Safety rules
+## Execute and verify
 
-Follow these rules to protect live editor state.
+1. Inspect target objects, paths, current values, selection, PIE, loading and compilation state as needed. Use stable object/asset paths returned by the editor; an actor label can be ambiguous. Follow project units and naming conventions (normally centimeters and degrees).
+2. Make the smallest coherent change. Serialize dependent calls and shared-state mutations. Concurrent independent reads require server support. For bulk changes, establish recoverable saved state using relevant save/source-control facilities; avoid saving unrelated dirty assets indiscriminately.
+3. Read every result, including protocol errors, structured status and compile diagnostics. An empty successful return can be valid for a void tool; resolve explicit failures before dependent work. After a timeout, re-query state before retrying a mutation that may already have completed.
+4. Compile affected Blueprints/materials or build affected code where needed. Save changed assets/map when requested or implied, and read back properties/graph/object state. Check for duplicates when creating assets or actors.
+5. Validate at the right level: inspect graph wiring, use targeted automation or PIE for gameplay, and screenshots for visual layout when available. A screenshot cannot prove runtime behavior. Restore temporary selection/camera/PIE changes when appropriate.
 
-- **Save first, then save again.** Tell the user to save the project (or call `AssetTools` save APIs) before any bulk change, and again after. MCP edits are not always undoable, especially across compilation boundaries. Treat anything that touches multiple assets as a destructive operation that needs a recovery point.
-- **Wait for compilation.** If C++ or shader compilation is in flight, your tool calls will hang or fail in confusing ways. To rebuild C++ from the running editor, drive `LiveCodingToolset.CompileLiveCoding` and wait on its result instead of asking the user to switch to the IDE. That tool blocks until the compile actually finishes and surfaces MSVC diagnostics.
-- **Control concurrent calls.** MCP accepts concurrent requests and handles dispatch synchronization. Asynchronous tools can overlap, and request order does not guarantee execution or completion order. Serialize dependent calls and mutations that can affect the same asset or editor state. Use parallel calls only for independent work when the tools support safe overlap. Multiple agents can use one editor, but their conflicting changes can cause adverse effects.
-- **Always check the result.** Blueprint compilation, widget creation, material edits: many tools return a status that flips between success and failure with no exception thrown on the wire. Read the response before moving on. Treat anything that isn't an explicit success as a stop.
-- **Mind PIE.** Editor-only tools (asset creation in particular) behave differently while Play-in-Editor is active. If a result looks wrong, check whether PIE is running and stop it if so.
+Stop or change PIE only when required by the operation and within the task. Don't restart the editor, kill a proxy, delete assets, or run broad cleanup merely because a query failed. Resolve the actual precondition.
 
-## Project skills
+## Source and C++ iteration
 
-A project or plugin can register **Agent Skills**: named bundles of instructions that capture workflow knowledge the agent wouldn't otherwise have (a project's naming conventions, folder layout, required setup steps, or the canonical sequence for a multi-step task). These are separate from the toolsets themselves and are reached through the agent skill toolset (`AgentSkillToolset`), not through `list_toolsets`.
+For source edits, build selection, Live Coding limits, automation, and domain verification read [workflows.md](references/workflows.md). Keep `.uasset` and `.umap` edits inside supported editor APIs; never patch their binary contents with text tools.
 
-Check for them the same way you discover tools, and do it whenever you start unfamiliar work in a project rather than just once:
+Finish with changed source/asset paths, verification performed and results, and remaining editor/build blockers. Distinguish saved source, successful compilation, live readback, and tested gameplay.
 
-1. Call `AgentSkillToolset.ListSkills` (through `call_tool`) to see what skills the project registers. Each entry carries a short description of what it covers and when it applies.
-2. If a skill's description looks relevant to what the user asked, call `AgentSkillToolset.GetSkills` on it to load the full instructions, then follow them.
-3. If nothing matches, fall back to the tool-discovery flow above.
+## Related work
 
-A relevant project skill's instructions take precedence over your generic defaults: it exists precisely because the project's way of doing something differs from the obvious one. (Authoring or editing these skills is a separate task covered by the `unreal-skill` companion skill below.)
-
-## Reference files
-
-- `references/setup.md`: first-time MCP server setup, client configuration, and optional proxy installation.
-- `references/operations.md`: console commands, settings, proxy recovery, and troubleshooting for missing tools or failed calls.
-
-## Companion skills
-
-- **`create-toolset`**: use when authoring a new toolset or adding tools to an existing one. Covers design principles, C++ and Python conventions, registration, error handling, and testing.
-- **`unreal-skill`**: use when creating, updating, or reviewing an Agent Skill. Covers what makes a good skill and how to structure one.
+If available, use `create-toolset` to extend MCP capabilities and `unreal-skill` to author reusable Codex or supported engine skills. Their installation is optional; this runtime workflow does not depend on them.

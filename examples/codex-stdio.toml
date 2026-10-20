@@ -1,0 +1,8 @@
+# Template for a server whose documented entry point is a Python script via uv.
+# Replace with the installed implementation's actual command and directory.
+# Merge ONE transport into .codex/config.toml, reusing any existing connection.
+[mcp_servers.unrealMCP]
+command = "uv"
+args = ["--directory", "D:/Tools/unreal-mcp/Python", "run", "unreal_mcp_server.py"]
+startup_timeout_sec = 20
+tool_timeout_sec = 120

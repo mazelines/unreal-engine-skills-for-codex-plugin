@@ -1,0 +1,7 @@
+# Merge into the target project's .codex/config.toml, preserving other settings.
+# Use only if the installed HTTP MCP server listens at this endpoint.
+# Reuse the existing server name; do not configure a duplicate connection.
+[mcp_servers.unrealMCP]
+url = "http://127.0.0.1:8000/mcp"
+startup_timeout_sec = 20
+tool_timeout_sec = 120

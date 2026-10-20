@@ -1,112 +1,49 @@
 ---
 name: unreal-skill
-description: "Use this skill when creating, editing, or reviewing an Unreal Engine Agent Skill, a named bundle of instructions registered with the unreal-mcp server (distinct from Claude Code's harness skills under `.claude/skills/`). Trigger when the user wants to add or change a skill that the in-editor agent will load. Concrete triggers: 'create a new Agent Skill', 'add a skill for X workflow', 'edit/update this skill', 'review my skill', 'make a Python skill class', 'create a skill UAsset', 'register a skill so Claude picks it up'; writing or editing a `SKILL.md` inside a UE plugin's `Skills/` or `Python/skills/` folder; defining a Python skill class registered with the skill registry; calling `CreateSkill`, `ListSkills`, or `GetSkills` MCP tools; designing a skill's name, description, or instruction body. SKIP for: authoring a toolset (use create-toolset), invoking an existing skill at runtime (use unreal-mcp), editing harness-level Claude Code skills under `.claude/skills/` or `~/.claude/skills/`, or generic uses of the word 'skill'."
+description: Create, revise, or review reusable Unreal Engine workflow skills for Codex, or engine Agent Skills when the connected unrealMCP implementation supports them. Use for SKILL.md authoring, project workflow instructions, or Agent Skill registration. Exclude executing an existing editor workflow and implementing MCP tools.
 ---
 
-# Unreal Skill
+# Author Unreal workflow skills for Codex
 
-You are authoring an Unreal Engine Agent Skill: a named, reusable bundle of instructions that packages essential knowledge the agent either doesn't know or needs to pay close attention to. A skill can provide general best practices in a domain, guidance on a specific workflow, or a mix of both.
+Choose the delivery format from the request and installed engine capabilities. Default to a portable Codex skill for workflows meant to guide Codex. An engine Agent Skill is a separate optional implementation, not a requirement for using unrealMCP.
 
-## Principles
+## Choose the target
 
-A good skill is:
+| Target | Use when | Deliverable |
+| --- | --- | --- |
+| Codex skill | Reusable source/editor workflow, conventions, build or verification guidance | `<skill-name>/SKILL.md`, relevant references, optional `agents/openai.yaml` |
+| Engine Agent Skill | Instructions registered inside an engine with that registry | Supported Python skill class or Agent Skill asset |
 
-**Novel**: The content should be things the agent doesn't already know or can't learn by using tools. If the agent could figure it out by calling a tool, don't put it in a skill.
+Inspect existing guidance and skills first. Extend the existing owner of a workflow rather than introducing a competing copy. For engine registration, discover real schemas; if absent, deliver the Codex form or explain the missing capability without inventing a UAsset type.
 
-**Collegial**: Write like you're briefing a knowledgeable colleague, not authoring documentation. Assume the reader understands Unreal. Give them what they need to act, not a full explanation of how everything works.
+## Codex format
 
-**Flexible**: Skills can include conceptual explanations, step-by-step instructions, or a mix. Use whichever form makes the guidance clearest for the task.
+Create a lowercase hyphenated folder and matching frontmatter `name` under 64 characters. The `description` should state the task and when to select it, with a boundary from neighboring skills. Store repo skills under `.agents/skills/`; for user installation honor the configured skill root or requested destination. Avoid duplicate names across roots.
 
-**Durable**: Don't embed property names, tool names, or other details that change over time. Skills that reference specific API names break silently when those names change.
+```markdown
+---
+name: unreal-level-review
+description: Review this project's Unreal level layout against its traversal and naming rules before a level handoff.
+---
 
-**Agnostic**: Don't reference orchestration systems, role names, model names, or anything about how the agent is wired up. Skills should work regardless of the surrounding infrastructure.
-
-**Parsimonious**: Every token costs context. Put them where they matter most and cut anything that isn't essential or evergreen. If a sentence wouldn't be missed, remove it.
-
-## Before You Write
-
-Work through these questions before writing anything.
-
-**1. Does the skill already exist?** Call `ListSkills` via MCP to see all registered skills in the project, then `GetSkills` on anything relevant. If the capability is already covered, point the user to the existing skill rather than creating a new one.
-
-**2. Choose the implementation path.** Two paths exist and the choice depends on where the skill lives:
-
-- **Python class**: The right choice when the skill is part of a code plugin. It lives alongside the plugin's Python toolsets, is version-controlled with the plugin, and is registered automatically when the plugin loads.
-- **UAsset**: The right choice when the skill is project-specific and doesn't belong in a plugin. Create it directly in the Content Browser using `CreateSkill` via MCP. No code required.
-
-## Structure
-
-Every Unreal skill has two fields.
-
-**Description**: Loaded at discovery time, before the skill's full instructions are read. One or two sentences that clearly describe what the skill covers and when it applies.
-
-**Instructions**: The skill's payload. The actual guidance the agent follows when the skill is active. Apply the principles above: focus on what tools can't teach and cut anything not essential.
-
-The agent discovers and dispatches tools at runtime through the unreal-mcp meta-tools (`list_toolsets`, `describe_toolset`, `call_tool`), so write instructions that assume the agent will find the tools it needs rather than naming a fixed toolset list.
-
-## Python Skills
-
-A Python skill is a `UAgentSkill` subclass defined in a Python file inside a plugin. Use this path when the skill belongs to a code plugin and should be version-controlled with the plugin.
-
-### Authoring
-
-Decorate the class with `@agent_skill` and inherit from `unreal.AgentSkill`. The two fields from the Structure section map to class attributes:
-
-- The class docstring becomes the `Description`. Keep it to one or two sentences.
-- `instructions` is a class attribute string containing the guidance loaded when the skill activates.
-
-```python
-import unreal
-
-from toolset_registry.agent_skill import agent_skill
-
-_INSTRUCTIONS = (
-    'Do X before Y, because Z.\n'
-    'Always verify the result after performing the operation.\n'
-)
-
-@agent_skill
-class MySkill(unreal.AgentSkill):
-    """Provides guidance on doing X in Unreal Engine.
-    Apply this skill whenever the user wants to accomplish X."""
-
-    instructions = _INSTRUCTIONS
+Inspect the target map and applicable project rules before making changes.
+Read references/level-rules.md for this project's traversal constraints.
+Use the connected MCP server's discovered inspection tools and verify findings
+against actual actors and transforms. Report object paths with each finding.
 ```
 
-### Registration
+Write project knowledge or workflow decisions tools cannot readily teach: naming, units, build targets, content ownership, ordering constraints, and observable acceptance criteria. Put substantial conditional procedures in linked references. Keep the skill self-contained; don't require unavailable companion skills.
 
-Skills register themselves on import. Unless directed otherwise, place skill files in a `skills/` subfolder within the plugin's Python package, import each one explicitly in that subfolder's `__init__.py`, and ensure `init_unreal.py` imports the `skills` package.
+For MCP use, require capability/schema discovery, establish target project/map, use source tools for code and editor tools for binary assets, and verify mutations with readback. Don't hardcode one server's tool names as universal. A missing editor may block runtime verification while source work remains possible.
 
-### Reloading
+For UI metadata, include `interface.display_name`, a 25–64 character `short_description`, and a `default_prompt` mentioning `$skill-name` in `agents/openai.yaml`. Quote strings. Leave automatic selection enabled unless the user requests otherwise. Declare a fixed MCP dependency only when that exact connection is required.
 
-After editing a Python skill, reload the plugin's package before verifying. The editor won't pick up changes otherwise. Enable Remote Execution in **Edit → Project Settings → Plugins → Python → Enable Remote Execution**, then run:
+## Engine format
 
-```bash
-python Engine/Plugins/Experimental/ToolsetRegistry/Content/Python/toolset_registry/tests/reload_remote.py your_plugin
-```
+Only for a verified ToolsetRegistry/AgentSkill implementation, read [engine-agent-skills.md](references/engine-agent-skills.md). Its decorators, methods and UAsset types are engine-build-specific examples; confirm them in local source and live schemas. Choose Python for plugin-owned guidance and an asset for project-owned content where supported. Read back registered instructions after reload/save.
 
-## UAsset Skills
+## Validate and maintain
 
-A UAsset skill is a `UAgentSkill` instance saved as a Content Browser asset. Use this path for project-specific skills that don't belong in a plugin and require no code.
+Validate frontmatter, referenced files and UI metadata. Review realistic positive and negative discovery requests, an offline-editor case, and expected verification evidence. Run helper scripts in a temporary project before delivery. Report static validation separately from engine execution.
 
-### Authoring
-
-Use `AgentSkillToolset` via MCP. Start by calling `ListSkills` to see what exists, then either create or update:
-
-**Creating**: Call `CreateSkill` with:
-- `FolderPath`: Content Browser folder, e.g. `/Game/Skills/`
-- `AssetName`: PascalCase name, e.g. `MyWorkflowSkill`
-- `Description`: one or two sentences (see Structure above)
-- `Details`: a `FAgentSkillDetails` with `Instructions`
-
-**Updating**: Call `UpdateSkill` with:
-- `SkillPath`: full path to the skill, e.g. `/Game/Skills/MyWorkflowSkill.MyWorkflowSkill_C`
-- `Description`: revised description
-- `Details`: revised `FAgentSkillDetails`
-
-## Reviewing Your Work
-
-Before handing off, verify the skill looks right by calling `GetSkills` on its path. Then read the description and instructions together as the agent will see them:
-
-- **Description**: Does it clearly say when this skill applies? Would an agent reading only the description know whether to activate it for a given task?
-- **Instructions**: Do they teach something the agent couldn't learn from the tools? Are they brief enough to be worth the context cost?
+For user-managed skills, follow applicable local/cloud maintenance instructions: reuse a recorded cloud ID or locate an unambiguous name match, preserve visibility, and update all references/assets/metadata with the instructions. Only claim sync after verifying saved cloud contents. If upload is unavailable, preserve the local skill and a complete upload ZIP and state the blocker. Cloud storage does not grant access to a localhost Unreal server.
